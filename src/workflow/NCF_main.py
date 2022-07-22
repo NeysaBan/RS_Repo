@@ -5,14 +5,13 @@ warnings.filterwarnings('ignore')
 import sys
 sys.path.append(r"/data/RS/RS_Repo/")
 
-from src.config.NCF_config import getConfig, recordWandb
+from src.config.NCF_config import getParser, recordWandb
 from src.utils.NCF.data_utils import getData
-from src.utils.NCF.model_utils import getModel
-from src.utils.NCF.trainer import train, test, valRoc
+from src.utils.NCF.trainer import getModel,train, test, valRoc
 
 
 if __name__=='__main__':
-    parser = getConfig()
+    parser = getParser()
     args = parser.parse_args()
 
     recordWandb(args)

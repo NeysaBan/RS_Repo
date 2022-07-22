@@ -1,14 +1,44 @@
-from datetime import datetime
+import time
 import torch
 import numpy as np
 import os
 import wandb
 import pandas as pd
+from torch import nn, optim
 import sys
 
 
 sys.path.append(r"/data/RS/RS_Repo/")
 from src.utils.metrics import precision
+from src.model.NCF_model import *
+
+def date(f='%Y-%m-%d %H:%M:%S'):
+    return time.strftime(f, time.localtime())
+
+def getModel(args, user_num, item_num):
+
+    if args.model_name == 'NeuMF-pre':
+        assert os.path.exists(args.model_path + args.GMF_model_name), 'lack of GMF model'
+        assert os.path.exists(args.model_path + args.MLP_model_path), 'lack of MLP model'
+        GMF_model = NCF(user_num, item_num, args.embedding_dim, args.dropout, model_name ='GMF')
+        GMF_model.load_state_dict(torch.load(args.GMF_model_path))
+        MLP_model = NCF(user_num, item_num, args.embedding_dim, args.dropout, model_name ='MLP')
+        MLP_model.load_state_dict(torch.load(args.MLP_model_path))
+    else:
+        GMF_model = None
+        MLP_model = None
+
+    model = NCF(user_num, item_num, args.embedding_dim, args.dropout, args.model_name, args.mlp_num_layers, GMF_model, MLP_model)
+    model.cuda()
+
+    loss = nn.MSELoss()
+
+    if args.model_name == 'NeuMF-pre':
+        optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+    return model, loss, optimizer
 
 def train(args, train_loader, val_loader, model, loss_function, optimizer):
 
@@ -18,7 +48,7 @@ def train(args, train_loader, val_loader, model, loss_function, optimizer):
 
     for epoch in range(args.epochs):
 
-        print(f"{datetime.now()} ######  This is epoch {epoch}")
+        print(f"{date()} ######  This is epoch {epoch}")
 
         model.train()
         train_loss = 0
@@ -37,7 +67,7 @@ def train(args, train_loader, val_loader, model, loss_function, optimizer):
             loss.backward()
             optimizer.step()
 
-        print(f"{datetime.now()} Train loss is {train_loss}")
+        print(f"{date()} Train loss is {train_loss}")
         wandb.log({'trainLoss': train_loss ,'epoch': epoch})
 
         eval_precision, eval_loss = eval(args, epoch, val_loader, model, loss_function)
@@ -50,7 +80,7 @@ def train(args, train_loader, val_loader, model, loss_function, optimizer):
                             '{}{}.pth'.format(args.model_path, args.model_name))
 
     wandb.save('{}{}.pth'.format(args.model_path, args.model_name))
-    print(f"{datetime.now()}****** The best epoch is {best_epoch}, and the precision is {best_precision}, the loss is {record_loss}")
+    print(f"{date()} ****** The best epoch is {best_epoch}, and the precision is {best_precision}, the loss is {record_loss}")
 
 
 
@@ -89,7 +119,7 @@ def eval(args, epoch, test_loader, model, loss_function):
             eval_loss = eval_loss + loss
 
     final_precision, final_loss = np.float(np.mean(precision_list)), eval_loss
-    print(f"{datetime.now()} Evalueate precision is {final_precision}, loss is {final_loss}")
+    print(f"{date()} Evalueate precision is {final_precision}, loss is {final_loss}")
     wandb.log({'valPrecision':final_precision, 'valLoss': final_loss ,'epoch': epoch})
 
     return final_precision, final_loss
@@ -116,7 +146,7 @@ def test(args, test_loader, model):
     res_df = pd.DataFrame()
     res_df['ratings'] = res
     res_df.to_csv(args.result_path)
-    print('End! Successful!')
+    print('End! Success!')
 
 
 def valRoc(args, test_loader, model):
@@ -141,4 +171,4 @@ def valRoc(args, test_loader, model):
     res_df['ratings'] = res
     res_df['labels'] = target
     res_df.to_csv(args.result_path, index = False)
-    print('End! Successful!')
+    print('End! Success!')

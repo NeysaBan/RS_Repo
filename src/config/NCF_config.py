@@ -1,7 +1,7 @@
 import argparse
 import wandb
 
-def getConfig():
+def getParser():
     parser = argparse.ArgumentParser()
 
     ## device
